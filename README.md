@@ -27,6 +27,14 @@ YouTube fingerprints datacenter IP ranges and blocks transcript/caption requests
 them — even with correct headers, cookies, or a fresh proxy. This isn't a bug in the
 transcript library; it's an IP-reputation block that no amount of retry logic fixes.
 
+This builds on and vendors a patched copy of
+[jkawamoto/mcp-youtube-transcript](https://github.com/jkawamoto/mcp-youtube-transcript)
+by [Junpei Kawamoto](https://github.com/jkawamoto) — all credit for the core
+transcript-fetching MCP server goes to that project. What's added here: the VPN-based
+IP-block workaround, the `search_videos` tool, trimming to just the tools this setup
+needs, and the deployment stack around it. See [Credits](#credits) for the full license
+details.
+
 ## The fix
 
 Route just this one tool's egress through a **residential VPN (NordVPN OpenVPN)**,
@@ -234,6 +242,18 @@ error text; that's the most useful bug report you can give.
 
 If this saved you the afternoon of proxy/VPN debugging it took to build, a ⭐ helps
 other people find it.
+
+## Credits
+
+The core MCP server (`vendor/mcp-youtube-transcript/`) is
+[jkawamoto/mcp-youtube-transcript](https://github.com/jkawamoto/mcp-youtube-transcript)
+by [Junpei Kawamoto](https://github.com/jkawamoto), vendored here and patched to trim
+unused tools and add `search_videos`. Its original MIT license is preserved at
+[`vendor/mcp-youtube-transcript/LICENSE`](vendor/mcp-youtube-transcript/LICENSE) — go
+star that repo too.
+
+Everything else in this repo (the VPN-isolation deployment stack, `search_videos`,
+Traefik/auth wiring, this README) is covered by the top-level [LICENSE](LICENSE).
 
 ## License
 
