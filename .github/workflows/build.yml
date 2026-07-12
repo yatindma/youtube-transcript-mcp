@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build MCP server image
+        run: docker build -t youtube-transcript-mcp:ci .
+
+      - name: Build authcheck image
+        run: docker build -t youtube-transcript-mcp-authcheck:ci ./authcheck
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Byte-compile the patched server (catches syntax errors)
+        run: python -m py_compile vendor/mcp-youtube-transcript/src/mcp_youtube_transcript/*.py
+
+      - name: Validate docker-compose.yml
+        run: |
+          cp .env.example .env
+          docker compose config -q

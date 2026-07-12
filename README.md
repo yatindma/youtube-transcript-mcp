@@ -4,6 +4,7 @@
 
 **Give any LLM client instant, unblocked access to YouTube transcripts and search — self-hosted, no third-party API quotas.**
 
+[![Build](https://github.com/yatindma/youtube-transcript-mcp/actions/workflows/build.yml/badge.svg)](https://github.com/yatindma/youtube-transcript-mcp/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-6b46c1)](https://modelcontextprotocol.io)
@@ -44,6 +45,42 @@ Two tools, exposed over the [Model Context Protocol](https://modelcontextprotoco
 
 Search result → straight into `get_transcript`. That's the whole loop: find a video,
 read what's actually said in it.
+
+## See it in action
+
+```
+» search_videos(query: "claude code tutorial", max_results: 3)
+
+[
+  {
+    "title": "From Zero to Claude Code in 19 Minutes (no code)",
+    "url": "https://www.youtube.com/watch?v=5tgHMa2Z3jc",
+    "uploader": "Futurepedia",
+    "duration": 1149.0,
+    "view_count": 122026
+  },
+  {
+    "title": "Claude Code Tutorial: Beginner to Advanced in 20 Minutes",
+    "url": "https://www.youtube.com/watch?v=ujHXnlSVheI",
+    "uploader": "Zinho Automates",
+    "duration": 1164.0,
+    "view_count": 135270
+  },
+  ...
+]
+
+» get_transcript(url: "https://www.youtube.com/watch?v=5tgHMa2Z3jc")
+
+{
+  "title": "From Zero to Claude Code in 19 Minutes (no code) - YouTube",
+  "transcript": "People assume they won't be able to use Claude Code if they're
+  not technical, but that is not true at all. Anyone can use it to build apps,
+  websites, automations, designs, Chrome extensions, productivity tools..."
+}
+```
+
+Both calls above are real output from a running instance of this server — this is
+exactly what your LLM client sees.
 
 ## Quick start
 
@@ -191,6 +228,7 @@ private network.
 ## Contributing
 
 Issues and PRs welcome — this is a small, focused project and easy to review end to end.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for what's most useful to report or send a PR for.
 If you hit a YouTube-blocking scenario this setup doesn't handle, open an issue with the
 error text; that's the most useful bug report you can give.
 
