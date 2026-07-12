@@ -1,0 +1,90 @@
+services:
+  mcp-youtube-transcript-vpn:
+    image: qmcgaw/gluetun:latest
+    container_name: mcp-youtube-transcript-vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=${NORDVPN_OPENVPN_USER}
+      - OPENVPN_PASSWORD=${NORDVPN_OPENVPN_PASSWORD}
+      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-Germany}
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.50"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "https://ipv4.icanhazip.com"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    networks:
+      - proxy
+    labels:
+      # --- Traefik reverse-proxy wiring. Delete this whole `labels:` block if you
+      # are not using Traefik (e.g. exposing the port directly instead) ---
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      - "traefik.http.middlewares.mcp-yt-auth.forwardauth.address=http://mcp-youtube-transcript-authcheck:8000/verify"
+      - "traefik.http.middlewares.mcp-yt-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.mcp-yt-auth.forwardauth.maxResponseBodySize=1024"
+
+      - "traefik.http.middlewares.mcp-yt-ratelimit.ratelimit.average=${RATE_LIMIT_PER_MIN:-1000}"
+      - "traefik.http.middlewares.mcp-yt-ratelimit.ratelimit.burst=${RATE_LIMIT_BURST:-200}"
+      - "traefik.http.middlewares.mcp-yt-ratelimit.ratelimit.period=1m"
+
+      - "traefik.http.routers.mcp-youtube-transcript.rule=Host(`${MCP_DOMAIN}`)"
+      - "traefik.http.routers.mcp-youtube-transcript.entrypoints=websecure"
+      - "traefik.http.routers.mcp-youtube-transcript.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.mcp-youtube-transcript.middlewares=mcp-yt-ratelimit@docker,mcp-yt-auth@docker"
+      - "traefik.http.services.mcp-youtube-transcript.loadbalancer.server.port=3003"
+
+  mcp-youtube-transcript:
+    build: .
+    container_name: mcp-youtube-transcript
+    restart: unless-stopped
+    # Shares the VPN container's network namespace: every request this container makes
+    # goes out through the VPN tunnel. It intentionally has no `networks:`/`ports:`/
+    # Traefik labels of its own — see the VPN service above for those.
+    network_mode: "service:mcp-youtube-transcript-vpn"
+    depends_on:
+      mcp-youtube-transcript-vpn:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.50"
+
+  mcp-youtube-transcript-authcheck:
+    build: ./authcheck
+    container_name: mcp-youtube-transcript-authcheck
+    restart: unless-stopped
+    environment:
+      - MCP_API_KEY=${MCP_API_KEY}
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  # An externally-created Docker network that your Traefik container is also attached
+  # to. If you're not using Traefik, you can remove this whole `networks:` section and
+  # instead publish a port directly on the mcp-youtube-transcript-vpn service, e.g.
+  # `ports: ["3003:3003"]`.
+  proxy:
+    external: true
