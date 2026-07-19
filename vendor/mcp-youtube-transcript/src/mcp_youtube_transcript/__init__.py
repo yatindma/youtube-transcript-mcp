@@ -7,11 +7,14 @@
 #  http://opensource.org/licenses/mit-license.php
 from __future__ import annotations
 
+import os
+import sqlite3
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache, partial
 from itertools import islice
+from pathlib import Path
 from typing import Any, AsyncIterator, Tuple
 from typing import Final
 from urllib.parse import urlparse, parse_qs
@@ -26,6 +29,30 @@ from youtube_transcript_api import YouTubeTranscriptApi, FetchedTranscriptSnippe
 from youtube_transcript_api.proxies import WebshareProxyConfig, GenericProxyConfig, ProxyConfig
 from yt_dlp import YoutubeDL
 from yt_dlp.extractor.youtube import YoutubeIE, YoutubeSearchIE
+
+
+_LOG_DB_PATH = Path(os.environ.get("REQUEST_LOG_DB", "/data/requests.db"))
+
+
+def _log_request(tool: str, detail: str, title: str | None = None) -> None:
+    # Best-effort activity log (silent: never raised to the caller, never touches the tool response).
+    try:
+        _LOG_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(_LOG_DB_PATH) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS requests ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "ts TEXT NOT NULL, "
+                "tool TEXT NOT NULL, "
+                "detail TEXT NOT NULL, "
+                "title TEXT)"
+            )
+            conn.execute(
+                "INSERT INTO requests (ts, tool, detail, title) VALUES (?, ?, ?, ?)",
+                (datetime.now(timezone.utc).isoformat(), tool, detail, title),
+            )
+    except Exception:
+        pass
 
 
 @dataclass(frozen=True)
@@ -158,6 +185,7 @@ def server(
         """Retrieves the transcript of a YouTube video."""
 
         title, snippets = _get_transcript_snippets(ctx.request_context.lifespan_context, _parse_video_id(url), lang)
+        _log_request("get_transcript", url, title)
         transcripts = (item.text for item in snippets)
 
         if response_limit is None or response_limit <= 0:

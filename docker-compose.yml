@@ -57,6 +57,8 @@ services:
     depends_on:
       mcp-youtube-transcript-vpn:
         condition: service_healthy
+    volumes:
+      - mcp-youtube-transcript-data:/data
     deploy:
       resources:
         limits:
@@ -88,3 +90,6 @@ networks:
   # `ports: ["3003:3003"]`.
   proxy:
     external: true
+
+volumes:
+  mcp-youtube-transcript-data:
