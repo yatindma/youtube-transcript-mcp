@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 from fastapi import FastAPI, Request, Response
 
 API_KEY = os.environ["MCP_API_KEY"]
+FAVICON = (Path(__file__).parent / "favicon.svg").read_bytes()
 
 app = FastAPI()
 
@@ -17,3 +19,9 @@ async def verify(request: Request) -> Response:
     if key != API_KEY:
         return Response(status_code=401)
     return Response(status_code=200)
+
+
+@app.get("/favicon.ico")
+@app.get("/favicon.svg")
+async def favicon() -> Response:
+    return Response(content=FAVICON, media_type="image/svg+xml")
