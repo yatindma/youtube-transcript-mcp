@@ -3,6 +3,7 @@
   "manifest_version": "0.4",
   "name": "mcp-youtube-transcript",
   "display_name": "YouTube Transcript MCP Server",
+  "icon": "assets/icon.svg",
   "version": "0.7.0",
   "description": "MCP server retrieving transcripts of YouTube videos",
   "author": {
