@@ -27,6 +27,10 @@ services:
     networks:
       - proxy
     labels:
+      # autoheal (below) restarts this container when the healthcheck above goes
+      # unhealthy — needed because a stuck NordVPN server otherwise loops AUTH_FAILED
+      # forever instead of picking a different one.
+      - "autoheal=true"
       # --- Traefik reverse-proxy wiring. Delete this whole `labels:` block if you
       # are not using Traefik (e.g. exposing the port directly instead) ---
       - "traefik.enable=true"
@@ -64,6 +68,32 @@ services:
         limits:
           memory: 512m
           cpus: "0.50"
+    healthcheck:
+      # Shares the VPN container's network namespace, so this also verifies the
+      # tunnel is actually passing traffic, not just that the process is alive.
+      # No wget/curl in this slim image, so use Python's stdlib instead. A plain GET
+      # to /mcp returns 406 (it wants POST/SSE) — that still proves the server is up,
+      # so only a connection failure (not an HTTP error status) should fail this check.
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import urllib.error, urllib.request
+          try:
+              urllib.request.urlopen("http://127.0.0.1:3003/mcp", timeout=10)
+          except urllib.error.HTTPError:
+              pass
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
+    labels:
+      # See the note on mcp-youtube-transcript-vpn: when that container gets
+      # autoheal-restarted, this one's network namespace goes with it and it needs
+      # restarting too — Compose doesn't cascade `network_mode: service:x` restarts
+      # automatically, so autoheal covers that gap via this container's own healthcheck.
+      - "autoheal=true"
 
   mcp-youtube-transcript-authcheck:
     build: ./authcheck
@@ -91,6 +121,24 @@ services:
       - "traefik.http.routers.mcp-yt-favicon.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
       - "traefik.http.routers.mcp-yt-favicon.priority=100"
       - "traefik.http.services.mcp-yt-favicon.loadbalancer.server.port=8000"
+
+  # Watches containers labeled autoheal=true and restarts them the moment Docker
+  # marks them unhealthy — this is what actually makes VPN auth-failure recovery
+  # automatic instead of needing a manual `docker compose restart`.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: mcp-youtube-transcript-autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+          cpus: "0.10"
 
 networks:
   # An externally-created Docker network that your Traefik container is also attached
