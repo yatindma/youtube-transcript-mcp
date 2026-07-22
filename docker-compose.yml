@@ -140,6 +140,23 @@ services:
           memory: 64m
           cpus: "0.10"
 
+  # Restarts mcp-youtube-transcript every time the VPN container (re)starts. Needed
+  # because mcp-youtube-transcript's own healthcheck can't detect this: it checks
+  # 127.0.0.1, which stays "healthy" even when the shared network namespace it's
+  # attached to has gone stale after a VPN restart — the process is alive, it's just
+  # unreachable from outside. See vpn-watcher/watch.sh for the full explanation.
+  vpn-watcher:
+    build: ./vpn-watcher
+    container_name: mcp-youtube-transcript-vpn-watcher
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 32m
+          cpus: "0.10"
+
 networks:
   # An externally-created Docker network that your Traefik container is also attached
   # to. If you're not using Traefik, you can remove this whole `networks:` section and
