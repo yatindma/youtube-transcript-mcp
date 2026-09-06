@@ -7,6 +7,7 @@
 #  http://opensource.org/licenses/mit-license.php
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from contextlib import asynccontextmanager
@@ -117,14 +118,23 @@ def _ytdlp_snippets(ctx: AppContext, video_id: str, languages: list[str]) -> Tup
     title = info.get("title") or "Transcript"
     tracks = {**(info.get("automatic_captions") or {}), **(info.get("subtitles") or {})}
 
-    for candidate in [*languages, *tracks]:
+    # automatic_captions lists every machine-translated language, so only the requested
+    # languages and the video's own are worth trying — anything else is a translation.
+    candidates = [*languages, info.get("language") or ""]
+
+    for candidate in candidates:
         formats = tracks.get(candidate)
         if not formats:
             continue
         url = next((f["url"] for f in formats if f.get("ext") == "json3"), None)
         if not url:
             continue
-        events = ctx.http_client.get(url).json().get("events") or []
+        # Fetch through yt-dlp's downloader, not our plain session: YouTube 429s the
+        # timedtext endpoint for requests that don't carry the client's own headers.
+        try:
+            events = json.loads(ctx.dlp.urlopen(url).read()).get("events") or []
+        except Exception:
+            continue
         snippets = []
         for event in events:
             if not event.get("segs"):
