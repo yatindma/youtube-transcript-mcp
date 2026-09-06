@@ -110,6 +110,41 @@ def _parse_video_id(url: str) -> str:
         return q[0]
 
 
+def _ytdlp_snippets(ctx: AppContext, video_id: str, languages: list[str]) -> Tuple[str, list[FetchedTranscriptSnippet]]:
+    # Fallback path: yt-dlp reaches the caption tracks through a different client than
+    # youtube-transcript-api, so a block on one often does not apply to the other.
+    info = ctx.dlp.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+    title = info.get("title") or "Transcript"
+    tracks = {**(info.get("automatic_captions") or {}), **(info.get("subtitles") or {})}
+
+    for candidate in [*languages, *tracks]:
+        formats = tracks.get(candidate)
+        if not formats:
+            continue
+        url = next((f["url"] for f in formats if f.get("ext") == "json3"), None)
+        if not url:
+            continue
+        events = ctx.http_client.get(url).json().get("events") or []
+        snippets = []
+        for event in events:
+            if not event.get("segs"):
+                continue
+            text = "".join(seg.get("utf8", "") for seg in event["segs"]).strip()
+            if not text:
+                continue
+            snippets.append(
+                FetchedTranscriptSnippet(
+                    text=text,
+                    start=event.get("tStartMs", 0) / 1000,
+                    duration=event.get("dDurationMs", 0) / 1000,
+                )
+            )
+        if snippets:
+            return title, snippets
+
+    raise ValueError(f"no caption track available for video {video_id}")
+
+
 @lru_cache
 def _get_transcript_snippets(ctx: AppContext, video_id: str, lang: str) -> Tuple[str, list[FetchedTranscriptSnippet]]:
     if lang == "en":
@@ -117,15 +152,18 @@ def _get_transcript_snippets(ctx: AppContext, video_id: str, lang: str) -> Tuple
     else:
         languages = [lang, "en"]
 
-    page = ctx.http_client.get(
-        f"https://www.youtube.com/watch?v={video_id}", headers={"Accept-Language": ",".join(languages)}
-    )
-    page.raise_for_status()
-    soup = BeautifulSoup(page.text, "html.parser")
-    title = soup.title.string if soup.title and soup.title.string else "Transcript"
+    try:
+        page = ctx.http_client.get(
+            f"https://www.youtube.com/watch?v={video_id}", headers={"Accept-Language": ",".join(languages)}
+        )
+        page.raise_for_status()
+        soup = BeautifulSoup(page.text, "html.parser")
+        title = soup.title.string if soup.title and soup.title.string else "Transcript"
 
-    transcripts = ctx.ytt_api.fetch(video_id, languages=languages)
-    return title, transcripts.snippets
+        transcripts = ctx.ytt_api.fetch(video_id, languages=languages)
+        return title, transcripts.snippets
+    except Exception:
+        return _ytdlp_snippets(ctx, video_id, languages)
 
 
 def _search_videos(ctx: AppContext, query: str, max_results: int) -> list[SearchResult]:

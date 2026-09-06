@@ -7,8 +7,11 @@ WORKDIR /app
 
 COPY vendor/mcp-youtube-transcript /app/mcp-youtube-transcript
 
+# mcp is pinned: mcp 2.x drops mcp.server.lowlevel.server.request_ctx, which
+# mcp-proxy still imports at startup.
 RUN pip install --no-cache-dir \
     /app/mcp-youtube-transcript \
+    "mcp<2" \
     "mcp-proxy>=0.4"
 
 EXPOSE 3003
