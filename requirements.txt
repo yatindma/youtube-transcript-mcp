@@ -1,0 +1,8 @@
+# Runtime dependencies on top of vendor/mcp-youtube-transcript.
+# mcp-proxy 0.14 is the floor because the Dockerfile uses --allowed-host.
+# mcp stays below 2: mcp-proxy imports request_ctx, which mcp 2.x drops.
+# yt-dlp stays unpinned at the top: YouTube breaks old versions, so rebuilds take the latest.
+yt-dlp[default,deno]>=2026.10.26
+youtube-transcript-api>=1.2.5
+mcp>=1.30,<2
+mcp-proxy>=0.14

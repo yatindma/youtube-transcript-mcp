@@ -7,15 +7,14 @@ WORKDIR /app
 
 COPY vendor/mcp-youtube-transcript /app/mcp-youtube-transcript
 
-# mcp is pinned: mcp 2.x drops mcp.server.lowlevel.server.request_ctx, which
-# mcp-proxy still imports at startup.
+COPY requirements.txt /app/requirements.txt
+
 RUN pip install --no-cache-dir \
     /app/mcp-youtube-transcript \
-    "mcp<2" \
-    "mcp-proxy>=0.4"
+    -r /app/requirements.txt
 
 EXPOSE 3003
 
 # --response-limit -1 disables pagination: full transcript, never truncated.
-ENTRYPOINT ["mcp-proxy", "--port", "3003", "--host", "0.0.0.0", "--", \
-    "mcp-youtube-transcript", "--response-limit", "-1"]
+# --allowed-host: mcp-proxy >=0.14 rejects unknown Host headers (HTTP 421); Traefik forwards MCP_DOMAIN.
+ENTRYPOINT ["sh", "-c", "exec mcp-proxy --port 3003 --host 0.0.0.0 --allowed-host \"$MCP_DOMAIN\" -- mcp-youtube-transcript --response-limit -1"]

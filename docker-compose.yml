@@ -61,6 +61,8 @@ services:
     depends_on:
       mcp-youtube-transcript-vpn:
         condition: service_healthy
+    environment:
+      - MCP_DOMAIN=${MCP_DOMAIN}
     volumes:
       - mcp-youtube-transcript-data:/data
     deploy:
